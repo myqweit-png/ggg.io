@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCB // Электрическая сеть</title>
+
+<style>
+:root {
+    --bg: #070c10;
+    --board: #102a22;
+    --cell: #15352b;
+    --copper: #a56b3e;
+    --gold: #f3c969;
+    --cyan: #38f5dc;
+    --green: #c8ff72;
+    --text: #d9f4e9;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    padding: 24px 12px;
+    min-height: 100vh;
+    color: var(--text);
+    background: radial-gradient(ellipse at top, #17312e, var(--bg) 65%);
+    font-family: system-ui, sans-serif;
+    text-align: center;
+}
+
+h1 {
+    margin: 0;
+    font-size: clamp(23px, 4vw, 38px);
+    letter-spacing: 3px;
+    text-shadow: 0 0 22px #38f5dc33;
+}
+
+.subtitle {
+    color: #83a99a;
+    font-size: 14px;
+    margin: 10px auto 20px;
+}
+
+.game {
+    width: min(100%, 1100px);
+    margin: auto;
+}
+
+.panel {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 13px 16px;
+    background: #101c20;
+    border: 1px solid #34594b;
+    border-radius: 10px 10px 0 0;
+    font-size: 11px;
+    letter-spacing: 1px;
+}
+
+#status { color: var(--gold); font-weight: 800; }
+#moves { color: var(--cyan); }
+
+.board-outer {
+    padding: 8px;
+    overflow: auto;
+    background: #091b16;
+    border: 1px solid #34594b;
+    border-top: 0;
+    border-radius: 0 0 10px 10px;
+    box-shadow: 0 15px 45px #0008;
+}
+
+.board {
+    --tile: clamp(24px, 3.2vw, 43px);
+    display: grid;
+    grid-template-columns: repeat(20, var(--tile));
+    gap: 2px;
+    width: max-content;
+    margin: auto;
+    padding: 8px;
+    border: 2px solid #426c50;
+    border-radius: 5px;
+    background:
+        radial-gradient(circle, #ffffff0a 1px, transparent 1.5px),
+        linear-gradient(145deg, #173b2d, #0b211b);
+    background-size: 10px 10px, auto;
+}
+
+.cell {
+    position: relative;
+    width: var(--tile);
+    height: var(--tile);
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid #284c3a;
+    border-radius: 3px;
+    background: #112b22;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cell:hover { border-color: var(--gold); background: #214a36; z-index: 1; }
+.cell:focus-visible { outline: 2px solid white; outline-offset: 1px; z-index: 2; }
+.cell.empty { background: #0c211b; border-color: #18392c; }
+.cell.empty:hover { cursor: default; }
+
+.cell.powered {
+    border-color: var(--cyan);
+    box-shadow: inset 0 0 8px #38f5dc30, 0 0 4px #38f5dc25;
+    background: #16483a;
+}
+
+.cell.source { background: #542023; border-color: #ff7169; }
+.cell.target { background: #3c3518; border-color: #9c8845; }
+
+.cell.target.powered {
+    background: #425d20;
+    border-color: var(--green);
+    box-shadow: 0 0 12px #c8ff7266;
+    animation: glow 1.2s infinite alternate;
+}
+
+.cell svg { display: block; width: 100%; height: 100%; }
+
+@keyframes glow {
+    from { box-shadow: 0 0 5px #c8ff7244; }
+    to { box-shadow: 0 0 15px #c8ff72aa; }
+}
+
+.controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+
+button.action {
+    padding: 11px 17px;
+    color: var(--text);
+    background: #142920;
+    border: 1px solid #416858;
+    border-radius: 7px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+button.action:hover { border-color: var(--cyan); color: var(--cyan); }
+
+#message {
+    min-height: 22px;
+    color: #83a99a;
+    font-size: 13px;
+    margin: 14px 0 0;
+}
+
+.legend {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin: 14px 0;
+    color: #83a99a;
+    font-size: 11px;
+}
+
+.dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 5px;
+    border-radius: 50%;
+    background: var(--copper);
+}
+.dot.on { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+.dot.win { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+.help {
+    color: #648477;
+    font-size: 12px;
+    line-height: 1.6;
+    margin: 12px auto;
+}
+
+/* ---------- Экран ввода имени ---------- */
+#nameScreen {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: radial-gradient(ellipse at top, #17312e, var(--bg) 70%);
+}
+
+#nameScreen.hidden { display: none; }
+
+.name-box {
+    width: min(100%, 400px);
+    padding: 28px 24px;
+    background: #101c20;
+    border: 1px solid #34594b;
+    border-radius: 12px;
+    box-shadow: 0 15px 45px #000a;
+}
+
+.name-box h2 {
+    margin: 0 0 8px;
+    letter-spacing: 2px;
+    font-size: 22px;
+}
+
+.name-box p {
+    margin: 0 0 18px;
+    color: #83a99a;
+    font-size: 13px;
+}
+
+.name-box input {
+    width: 100%;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    color: var(--text);
+    background: #0c211b;
+    border: 1px solid #416858;
+    border-radius: 7px;
+    font-size: 16px;
+    text-align: center;
+}
+
+.name-box input:focus { outline: none; border-color: var(--cyan); }
+.name-box button { width: 100%; }
+
+#nameError {
+    min-height: 18px;
+    margin: -6px 0 10px;
+    color: #ff7169;
+    font-size: 12px;
+}
+
+@media (max-width: 600px) {
+    body { padding: 18px 5px; }
+    .board-outer { padding: 3px; }
+    .board { gap: 1px; padding: 4px; }
+    .panel { font-size: 9px; padding: 10px 7px; }
+}
+</style>
+</head>
+
+<body>
+<div id="nameScreen">
+    <div class="name-box" id="nameBox">
+        <h2>ВВЕДИТЕ ИМЯ</h2>
+        <p>Имя нужно, чтобы засчитать прохождение головоломки.</p>
+        <input id="nameInput" type="text" maxlength="32" placeholder="Ваше имя" autocomplete="off">
+        <div id="nameError"></div>
+        <button class="action" id="startButton" type="button">Начать игру</button>
+    </div>
+</div>
+
+<h1>ВОССТАНОВИТЕ ЦЕПЬ</h1>
+<p class="subtitle">20 × 20 // Печатная плата · Поверните дорожки и запитайте светодиод</p>
+
+<main class="game">
+    <div class="panel">
+        <span id="player">ИГРОК: —</span>
+        <span id="status">● ЦЕПЬ НЕ ЗАМКНУТА</span>
+        <span id="moves">ХОДЫ: 0</span>
+    </div>
+
+    <div class="board-outer">
+        <div id="grid" class="board"></div>
+    </div>
+
+    <div class="controls">
+        <button class="action" id="reset">↻ Новая схема</button>
+    </div>
+
+    <p id="message"></p>
+
+    <div class="legend">
+        <span><i class="dot"></i>Медные дорожки</span>
+        <span><i class="dot on"></i>Под напряжением</span>
+        <span><i class="dot win"></i>Цель активирована</span>
+    </div>
+
+    <p class="help">
+        Нажмите на провод, чтобы повернуть его на 90°.<br>
+        Пустые ячейки не проводят ток. Источник — в левом верхнем углу, лампа — в правом нижнем.
+    </p>
+</main>
+
+<script>
+"use strict";
+
+const WEBHOOK_URL = "https://discord.com/api/webhooks/1556069866480599101/w9VW_mOzWZsu9z0jmwsh3xYi2euH1ccobKH0vB2quLF1Dxy3up9sqwU6uumLEBCMgi3_";
+
+const SIZE = 20;
+const START = 0;
+const END = SIZE * SIZE - 1;
+
+const DIR = [
+    { x: 0, y: -1 }, // 0: вверх
+    { x: 1, y: 0 },  // 1: вправо
+    { x: 0, y: 1 },  // 2: вниз
+    { x: -1, y: 0 }  // 3: влево
+];
+
+const grid = document.getElementById("grid");
+const statusEl = document.getElementById("status");
+const movesEl = document.getElementById("moves");
+const messageEl = document.getElementById("message");
+const playerEl = document.getElementById("player");
+
+let playerName = "";
+let board = [];
+let powered = new Set();
+let moves = 0;
+let won = false;
+
+// --------------------------------------------------
+// СОЕДИНЕНИЯ
+// --------------------------------------------------
+
+function baseConnections(type) {
+    switch (type) {
+        case "S": return [1];
+        case "E": return [3];
+        case "I": return [0, 2];
+        case "L": return [0, 1];
+        case "T": return [0, 1, 3];
+        case "X": return [0, 1, 2, 3];
+        default: return [];
+    }
+}
+
+function connections(cell) {
+    return baseConnections(cell.type).map(d => (d + cell.rot) % 4);
+}
+
+function opposite(d) { return (d + 2) % 4; }
+function indexOf(x, y) { return y * SIZE + x; }
+function coords(index) { return { x: index % SIZE, y: Math.floor(index / SIZE) }; }
+
+function neighbor(index, direction) {
+    const p = coords(index);
+    const x = p.x + DIR[direction].x;
+    const y = p.y + DIR[direction].y;
+    if (x < 0 || x >= SIZE || y < 0 || y >= SIZE) return -1;
+    return indexOf(x, y);
+}
+
+function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+// --------------------------------------------------
+// ГЕНЕРАЦИЯ ВСЕГДА ПРОХОДИМОГО УРОВНЯ
+// --------------------------------------------------
+// Источник жёстко направлен вправо, лампа принимает ток только слева.
+// Поэтому путь ОБЯЗАН идти START → клетка 1 → ... → клетка END-1 → END.
+//
+// Середину пути (от клетки 1 до клетки END-1) строим как путь в остовном
+// дереве, которое даёт рандомизированный обход в глубину. Дерево покрывает
+// все разрешённые клетки, поэтому путь между двумя клетками существует
+// всегда и находится за линейное время, без перебора и возвратов.
+
+function generateSolutionPath() {
+    const first = START + 1;
+    const last = END - 1;
+
+    const visited = new Set([first]);
+    const parent = new Map();
+    const stack = [first];
+
+    while (stack.length) {
+        const cur = stack[stack.length - 1];
+
+        const free = shuffle([0, 1, 2, 3])
+            .map(d => neighbor(cur, d))
+            .filter(n => n !== -1 && n !== START && n !== END && !visited.has(n));
+
+        if (free.length === 0) {
+            stack.pop();
+            continue;
+        }
+
+        const next = free[0];
+        visited.add(next);
+        parent.set(next, cur);
+        stack.push(next);
+    }
+
+    const middle = [];
+    for (let c = last; c !== undefined; c = parent.get(c)) middle.push(c);
+    middle.reverse();
+
+    return [START, ...middle, END];
+}
+
+function directionBetween(a, b) {
+    const pa = coords(a);
+    const pb = coords(b);
+    if (pb.x === pa.x && pb.y === pa.y - 1) return 0;
+    if (pb.x === pa.x + 1 && pb.y === pa.y) return 1;
+    if (pb.x === pa.x && pb.y === pa.y + 1) return 2;
+    if (pb.x === pa.x - 1 && pb.y === pa.y) return 3;
+    return -1;
+}
+
+function typeForConnections(directions) {
+    const dirs = [...new Set(directions)].sort();
+    if (dirs.length === 2) return (dirs[0] + 2) % 4 === dirs[1] ? "I" : "L";
+    return "L";
+}
+
+function rotationFor(type, desiredDirections) {
+    const desired = new Set(desiredDirections);
+    for (let rot = 0; rot < 4; rot++) {
+        const actual = baseConnections(type).map(d => (d + rot) % 4);
+        if (actual.length === desired.size && actual.every(d => desired.has(d))) {
+            return rot;
+        }
+    }
+    return 0;
+}
+
+// Считает, доходит ли ток от источника до лампы, для произвольной доски.
+function isSolved(cells) {
+    const seen = new Set([START]);
+    const queue = [START];
+
+    while (queue.length) {
+        const current = queue.shift();
+
+        for (const direction of connections(cells[current])) {
+            const next = neighbor(current, direction);
+            if (next === -1 || cells[next].type === "N") continue;
+            if (!connections(cells[next]).includes(opposite(direction))) continue;
+            if (!seen.has(next)) {
+                seen.add(next);
+                queue.push(next);
+            }
+        }
+    }
+
+    return seen.has(END);
+}
+
+function buildLevel() {
+    const path = generateSolutionPath();
+    const cells = Array.from({ length: SIZE * SIZE }, () => ({ type: "N", rot: 0 }));
+    const onPath = new Set(path);
+
+    // Правильные элементы на пути решения.
+    path.forEach((index, i) => {
+        if (index === START) { cells[index] = { type: "S", rot: 0 }; return; }
+        if (index === END)   { cells[index] = { type: "E", rot: 0 }; return; }
+
+        const dirs = [
+            directionBetween(index, path[i - 1]),
+            directionBetween(index, path[i + 1])
+        ];
+        const type = typeForConnections(dirs);
+        cells[index] = { type, rot: rotationFor(type, dirs) };
+    });
+
+    // Декоративные и ложные провода вокруг.
+    for (let i = 0; i < cells.length; i++) {
+        if (onPath.has(i)) continue;
+
+        const r = Math.random();
+        if (r < 0.24) continue;
+
+        let type;
+        if (r < 0.54) type = "I";
+        else if (r < 0.84) type = "L";
+        else if (r < 0.96) type = "T";
+        else type = "X";
+
+        cells[i] = { type, rot: Math.floor(Math.random() * 4) };
+    }
+
+    // Проверка: схема в «решённом» состоянии обязана быть замкнутой.
+    if (!isSolved(cells)) return null;
+
+    // Перемешиваем провода пути.
+    do {
+        path.forEach(index => {
+            if (index === START || index === END) return;
+            cells[index].rot = Math.floor(Math.random() * 4);
+        });
+    } while (isSolved(cells)); // стартовая схема не должна быть уже решённой
+
+    return cells;
+}
+
+function makeLevel() {
+    let cells = null;
+
+    // Страховка: если проверка не прошла (не должна), генерируем заново.
+    for (let attempt = 0; attempt < 50 && !cells; attempt++) {
+        cells = buildLevel();
+    }
+
+    board = cells;
+    moves = 0;
+    won = false;
+    messageEl.textContent = "";
+
+    updateGame();
+}
+
+// --------------------------------------------------
+// ПОИСК ПИТАНИЯ
+// --------------------------------------------------
+
+function checkNetwork() {
+    powered = new Set([START]);
+    const queue = [START];
+
+    while (queue.length) {
+        const current = queue.shift();
+
+        for (const direction of connections(board[current])) {
+            const next = neighbor(current, direction);
+            if (next === -1 || board[next].type === "N") continue;
+            if (!connections(board[next]).includes(opposite(direction))) continue;
+
+            if (!powered.has(next)) {
+                powered.add(next);
+                queue.push(next);
+            }
+        }
+    }
+
+    won = powered.has(END);
+}
+
+// --------------------------------------------------
+// ОТПРАВКА В DISCORD
+// --------------------------------------------------
+
+async function sendWin() {
+    try {
+        const response = await fetch(WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                content: `у ${playerName} получилось`,
+                // Запрещаем любые упоминания (@everyone, @here, роли, пользователи),
+                // чтобы имя игрока не могло никого «пингануть».
+                allowed_mentions: { parse: [] }
+            })
+        });
+
+        if (!response.ok) throw new Error("HTTP " + response.status);
+
+        messageEl.textContent =
+            `${playerName}, цепь восстановлена за ${moves} ходов! Результат отправлен.`;
+    } catch (e) {
+        messageEl.textContent =
+            `${playerName}, цепь восстановлена за ${moves} ходов, но отправить результат не удалось.`;
+    }
+}
+
+// --------------------------------------------------
+// РИСОВАНИЕ ПЕЧАТНОЙ ПЛАТЫ
+// --------------------------------------------------
+
+function makeSvg(cell, index) {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 100 100");
+    svg.setAttribute("aria-hidden", "true");
+
+    function el(tag, attrs) {
+        const node = document.createElementNS(ns, tag);
+        for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+        svg.appendChild(node);
+        return node;
+    }
+
+    const active = powered.has(index);
+    const wireColor = active ? "#38f5dc" : "#a56b3e";
+    const directions = connections(cell);
+
+    const positions = [[50, 3], [97, 50], [50, 97], [3, 50]];
+
+    positions.forEach(([x, y], d) => {
+        el("circle", { cx: x, cy: y, r: 4, fill: directions.includes(d) ? wireColor : "#755032" });
+    });
+
+    if (cell.type === "N") {
+        el("circle", { cx: 50, cy: 50, r: 8, fill: "#214637", stroke: "#41684e", "stroke-width": 3 });
+        el("circle", { cx: 50, cy: 50, r: 3, fill: "#a56b3e" });
+        return svg;
+    }
+
+    if (cell.type === "S" || cell.type === "E") {
+        el("rect", {
+            x: 12, y: 12, width: 76, height: 76, rx: 12,
+            fill: cell.type === "S" ? "#542023" : "#3c3518",
+            stroke: cell.type === "S" ? "#ff7169" : "#9c8845",
+            "stroke-width": 3
+        });
+
+        const text = el("text", { x: 50, y: 59, "text-anchor": "middle", "font-size": 43 });
+        text.textContent = cell.type === "S" ? "⚡" : "💡";
+
+        if (cell.type === "E" && active) {
+            el("circle", { cx: 50, cy: 50, r: 40, fill: "none", stroke: "#c8ff72", "stroke-width": 5 });
+        }
+        return svg;
+    }
+
+    const points = [
+        [50, 50, 50, 3],
+        [50, 50, 97, 50],
+        [50, 50, 50, 97],
+        [50, 50, 3, 50]
+    ];
+
+    directions.forEach(direction => {
+        const [x1, y1, x2, y2] = points[direction];
+
+        el("line", { x1, y1, x2, y2, stroke: "#081510", "stroke-width": 17, "stroke-linecap": "round" });
+        el("line", { x1, y1, x2, y2, stroke: wireColor, "stroke-width": 10, "stroke-linecap": "round" });
+        el("circle", { cx: x2, cy: y2, r: 5, fill: active ? "#b9fff4" : "#e6b46d" });
+    });
+
+    el("circle", {
+        cx: 50, cy: 50, r: 12,
+        fill: active ? "#38f5dc" : "#d4a05d",
+        stroke: active ? "#d1fff8" : "#f3c969",
+        "stroke-width": 2
+    });
+
+    if (active) {
+        el("circle", { cx: 50, cy: 50, r: 19, fill: "none", stroke: "#38f5dc", "stroke-width": 2, opacity: ".7" });
+    }
+
+    return svg;
+}
+
+// --------------------------------------------------
+// ОТРИСОВКА И УПРАВЛЕНИЕ
+// --------------------------------------------------
+
+const NAMES = {
+    S: "Источник", E: "Лампочка", I: "Прямой провод",
+    L: "Угол", T: "Тройник", X: "Перекрёсток", N: "Пустое место"
+};
+
+function render() {
+    const fragment = document.createDocumentFragment();
+
+    board.forEach((cell, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "cell";
+
+        if (cell.type === "N") button.classList.add("empty");
+        if (cell.type === "S") button.classList.add("source");
+        if (cell.type === "E") button.classList.add("target");
+        if (powered.has(index)) button.classList.add("powered");
+
+        button.appendChild(makeSvg(cell, index));
+
+        const p = coords(index);
+        button.title = `${NAMES[cell.type]} · строка ${p.y + 1}, столбец ${p.x + 1}`;
+        button.setAttribute("aria-label", button.title);
+
+        button.addEventListener("click", () => rotateCell(index));
+        fragment.appendChild(button);
+    });
+
+    grid.replaceChildren(fragment);
+}
+
+function updateGame() {
+    const wasWon = won;
+    checkNetwork();
+
+    if (won) {
+        statusEl.textContent = "● СВЕТОДИОД ЗАЖЖЁН";
+        statusEl.style.color = "#c8ff72";
+    } else {
+        statusEl.textContent = "● ЦЕПЬ НЕ ЗАМКНУТА";
+        statusEl.style.color = "#f3c969";
+    }
+
+    movesEl.textContent = `ХОДЫ: ${moves}`;
+    render();
+
+    // Победа фиксируется один раз: ввод блокируется в rotateCell.
+    if (won && !wasWon) {
+        messageEl.textContent = "Отправляем результат…";
+        sendWin();
+    }
+}
+
+function rotateCell(index) {
+    const cell = board[index];
+
+    if (!playerName || won || cell.type === "N" || cell.type === "S" || cell.type === "E") {
+        return;
+    }
+
+    cell.rot = (cell.rot + 1) % 4;
+    moves++;
+    updateGame();
+}
+
+document.getElementById("reset").addEventListener("click", () => {
+    if (playerName) makeLevel();
+});
+
+// --------------------------------------------------
+// ВВОД ИМЕНИ
+// --------------------------------------------------
+
+const nameScreen = document.getElementById("nameScreen");
+const nameInput = document.getElementById("nameInput");
+const nameError = document.getElementById("nameError");
+
+// Без <form>: в песочницах предпросмотра отправка форм блокируется,
+// и событие submit просто не срабатывает.
+function startGame() {
+    const name = nameInput.value.replace(/\s+/g, " ").trim();
+
+    if (name.length < 1) {
+        nameError.textContent = "Введите имя, чтобы начать.";
+        nameInput.focus();
+        return;
+    }
+
+    playerName = name;
+    playerEl.textContent = `ИГРОК: ${playerName}`;
+    nameScreen.classList.add("hidden");
+    makeLevel();
+}
+
+document.getElementById("startButton").addEventListener("click", startGame);
+
+nameInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+        event.preventDefault();
+        startGame();
+    }
+});
+
+nameInput.addEventListener("input", () => { nameError.textContent = ""; });
+
+// Игровое поле рисуем сразу (под экраном ввода), но играть можно только после имени.
+makeLevel();
+nameInput.focus();
+</script>
+</body>
+</html>
